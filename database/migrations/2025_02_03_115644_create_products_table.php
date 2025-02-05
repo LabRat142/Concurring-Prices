@@ -18,7 +18,10 @@ return new class extends Migration
             $table->string('url');
             $table->boolean('available');
             $table->string('imgURL');
+            $table->string('store');
             $table->timestamps();
+
+            $table->unique(['name', 'url']);
         });
     }
 

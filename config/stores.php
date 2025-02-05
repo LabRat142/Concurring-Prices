@@ -1,3 +1,5 @@
+<?php
+
 return [
     'stores' => [
         ['name' => 'Anhoch', 'search_url' => 'https://www.anhoch.com/products?query='],
