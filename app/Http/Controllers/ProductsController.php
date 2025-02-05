@@ -4,16 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ScrapeProductData;
 use App\Models\Products;
+use Illuminate\Contracts\View\Factory;
+use Illuminate\Contracts\View\View;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 
 class ProductsController extends Controller
 {
-    public function search(Request $request) {
+    public function search(Request $request): View|Factory|Application
+    {
         $query = $request->input('query');
 
         // Get existing data from the database
-        $products = Products::where('name', 'LIKE', "%{$query}%")
+        $products = Products::query()
+            ->where('name', 'LIKE', "%{$query}%")
             ->orderBy('price')
             ->get();
 
