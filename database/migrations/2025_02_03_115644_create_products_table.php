@@ -17,7 +17,7 @@ return new class extends Migration
             $table->integer('price');
             $table->string('url');
             $table->boolean('available');
-            $table->string('imgURL');
+            $table->string('imgURL')->nullable();
             $table->string('store');
             $table->timestamps();
 

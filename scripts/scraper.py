@@ -37,7 +37,7 @@ for store in stores:
             prod['name'] = product.find_element(By.CSS_SELECTOR, ".product-name").text.strip()
             prod['price'] = int(''.join(re.findall(r'\d+', product.find_element(By.CSS_SELECTOR, ".product-card-bottom .product-price").text.strip()))) / 100
             prod['url'] = product.find_element(By.CSS_SELECTOR, ".product-name").get_attribute("href")
-            prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".product-image").get_attribute("src")
+            prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".product-image img").get_attribute("src")
             prod['available'] = not bool(product.find_elements(By.CSS_SELECTOR, '.badge-notice'))
             products.append(prod)
 
@@ -49,7 +49,9 @@ for store in stores:
             prod['name'] = product.find_element(By.CSS_SELECTOR, ".name").text.strip()
             prod['price'] = int(''.join(re.findall(r'\d+', product.find_element(By.CSS_SELECTOR, ".category-price-redovna").text.strip())))
             prod['url'] = product.find_element(By.CSS_SELECTOR, ".name a").get_attribute("href")
-            prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".image img").get_attribute("src")
+            img= product.find_element(By.CSS_SELECTOR, ".image img")
+            prod['imgURL'] = img_element.get_attribute("data-echo") or img_element.get_attribute("src")
+            #prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".image img").get_attribute("src")
             prod['available'] = bool(product.find_elements(By.CSS_SELECTOR, '.ima_zaliha'))
             products.append(prod)
 
