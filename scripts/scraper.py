@@ -1,79 +1,119 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 import re
-import json
 import time
+import os
+import requests
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 
-search_term = sys.argv[1]
-stores = json.loads(sys.argv[2])
-options = Options()
-options.add_argument("--headless")
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-products = []
+def anhoch_scraping(url, products):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
 
-for store in stores:
+    product_elements = soup.select(".product-card")
+    for product in product_elements:
+        name = product.select_one(".product-name").text.strip()
+        price = int(
+            ''.join(re.findall(r'\d+', product.select_one(".product-card-bottom .product-price").text.strip()))) / 100
+        prod = {
+            'store': 'Anhoch',
+            'name': name,
+            'price': price,
+            'url': product.select_one(".product-name")["href"],
+            'imgURL': product.select_one(".product-image img")["src"],
+            'available': not bool(product.select_one('.badge-notice'))
+        }
+        products.append(prod)
+
+
+def setec_scraping(url, products):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    product_elements = soup.select(".product")
+    for product in product_elements:
+        name = product.select_one(".name").text.strip()
+        price = int(''.join(re.findall(r'\d+', product.select_one(".category-price-redovna").text.strip())))
+        img = product.select_one(".image img")
+        img_url = img["data-echo"] or img["src"]
+        available = bool(product.select_one('.ima_zaliha'))
+
+        prod = {
+            'store': 'Setec',
+            'name': name,
+            'price': price,
+            'url': product.select_one(".name a")["href"],
+            'imgURL': img_url,
+            'available': available
+        }
+        products.append(prod)
+
+
+def technomarket_scraping(url, products):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    product_elements = soup.select(".product-fix")
+    for product in product_elements:
+        name = product.select_one(".product-name").text.strip()
+        price_divs = product.select('.product-price')
+        price = None
+        for div in price_divs:
+            if 'Редовна Цена' in div.text:
+                price = int(''.join(re.findall(r'\d+', div.select_one('.nm').text.strip())))
+
+        img_url = product.select_one(".product-figure")["style"]
+        img_url = re.search(r'url\([\'"]?(https?://[^\s\'"]+)', img_url)
+        img_url = img_url.group(1) if img_url else None
+        available = bool(product.select_one('i.icon-ok'))
+
+        prod = {
+            'store': 'Technomarket',
+            'name': name,
+            'price': price,
+            'url': product.select_one(".product-name a")["href"],
+            'imgURL': img_url,
+            'available': available
+        }
+        products.append(prod)
+
+
+def scrape_store(store, search_term, products):
     name = store['name']
     url = store['search_url'] + search_term
     if name == 'Anhoch':
         url += '&perPage=1000'
+        anhoch_scraping(url, products)
     elif name == 'Setec':
         url += '&limit=1000'
-    if name == 'Technomarket':
-        url += '#page/1/offset/1000'
-
-    # Load the page in the browser
-    driver.get(url)
-    time.sleep(3)
-
-    if name == 'Anhoch':
-        product_elements = driver.find_elements(By.CSS_SELECTOR, ".product-card")
-        for product in product_elements:
-            prod = {}
-            prod['store'] = 'Anhoch'
-            prod['name'] = product.find_element(By.CSS_SELECTOR, ".product-name").text.strip()
-            prod['price'] = int(''.join(re.findall(r'\d+', product.find_element(By.CSS_SELECTOR, ".product-card-bottom .product-price").text.strip()))) / 100
-            prod['url'] = product.find_element(By.CSS_SELECTOR, ".product-name").get_attribute("href")
-            prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".product-image img").get_attribute("src")
-            prod['available'] = not bool(product.find_elements(By.CSS_SELECTOR, '.badge-notice'))
-            products.append(prod)
-
-    elif name == 'Setec':
-        product_elements = driver.find_elements(By.CSS_SELECTOR, ".product")
-        for product in product_elements:
-            prod = {}
-            prod['store'] = 'Setec'
-            prod['name'] = product.find_element(By.CSS_SELECTOR, ".name").text.strip()
-            prod['price'] = int(''.join(re.findall(r'\d+', product.find_element(By.CSS_SELECTOR, ".category-price-redovna").text.strip())))
-            prod['url'] = product.find_element(By.CSS_SELECTOR, ".name a").get_attribute("href")
-            img= product.find_element(By.CSS_SELECTOR, ".image img")
-            prod['imgURL'] = img_element.get_attribute("data-echo") or img_element.get_attribute("src")
-            #prod['imgURL'] = product.find_element(By.CSS_SELECTOR, ".image img").get_attribute("src")
-            prod['available'] = bool(product.find_elements(By.CSS_SELECTOR, '.ima_zaliha'))
-            products.append(prod)
-
+        setec_scraping(url, products)
     elif name == 'Technomarket':
-        product_elements = driver.find_elements(By.CSS_SELECTOR, ".product-fix")
-        for product in product_elements:
-            prod = {}
-            prod['store'] = 'Technomarket'
-            prod['name'] = product.find_element(By.CSS_SELECTOR, ".product-name").text.strip()
-            price_divs = product.find_elements(By.CSS_SELECTOR, '.product-price')
-            for div in price_divs:
-                if 'Редовна Цена' in div.text:
-                    prod['price'] = int(''.join(re.findall(r'\d+', div.find_element(By.CSS_SELECTOR, '.nm').text.strip())))
-            prod['url'] = product.find_element(By.CSS_SELECTOR, ".product-name a").get_attribute("href")
-            imgURL = product.find_element(By.CSS_SELECTOR, ".product-figure").get_attribute("style")
-            imgURL = re.search(r'url\([\'"]?(https?://[^\s\'"]+)', imgURL)
-            prod['imgURL'] = imgURL.group(1) if imgURL else None
-            prod['available'] = bool(product.find_elements(By.CSS_SELECTOR, 'i.icon-ok'))
-            products.append(prod)
+        url += '#page/1/offset/1000'
+        technomarket_scraping(url, products)
 
-# Close the browser session
-driver.quit()
 
-# TODO: Add products to database
+def main():
 
+    search_term = 'ram'
+    stores = [
+        {'name': 'Anhoch', 'search_url': 'https://www.anhoch.com/products?query='},
+        {'name': 'Setec', 'search_url': 'https://setec.mk/index.php?route=product/search&search='},
+        {'name': 'Technomarket', 'search_url': 'https://www.tehnomarket.com.mk/products/search?search='},
+    ]
+
+    products = []  # Now directly storing products in a list
+    num_threads = os.cpu_count() # Dynamically adjust the number of threads depending on the machine
+
+    # Create a ThreadPoolExecutor with a maximum of 4 threads
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        # Start a thread for each store
+        for store in stores:
+            executor.submit(scrape_store, store, search_term, products)
+
+    # TODO: Add products to the database or process further
+    for product in products:
+        print(product)
+
+
+if __name__ == "__main__":
+    main()
