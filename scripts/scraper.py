@@ -7,23 +7,37 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 def anhoch_scraping(url, products):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+    # Send a GET request to the API endpoint
+    headers = {
+        'Accept' : 'application/json'
+    }
+    response = requests.get(url, headers=headers)
 
-    product_elements = soup.select(".product-card")
-    for product in product_elements:
-        name = product.select_one(".product-name").text.strip()
-        price = int(
-            ''.join(re.findall(r'\d+', product.select_one(".product-card-bottom .product-price").text.strip()))) / 100
-        prod = {
-            'store': 'Anhoch',
-            'name': name,
-            'price': price,
-            'url': product.select_one(".product-name")["href"],
-            'imgURL': product.select_one(".product-image img")["src"],
-            'available': not bool(product.select_one('.badge-notice'))
-        }
-        products.append(prod)
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Load the JSON response
+        data = response.json()
+
+        # Extract the products from the JSON response
+        for product in data['products']['data']:
+            name = product['name']
+            price = float(product['price']['amount'])
+            product_url = f"https://www.anhoch.com/products/{product['slug']}"  # Constructing product URL
+            img_url = product['base_image']['path']
+            available = product['is_in_stock']
+
+            # Create a product dictionary
+            prod = {
+                'store': 'Anhoch',
+                'name': name,
+                'price': price,
+                'url': product_url,
+                'imgURL': img_url,
+                'available': available
+            }
+            # Append the product to the list
+            products.append(prod)
+
 
 
 def setec_scraping(url, products):
@@ -104,7 +118,7 @@ def main():
     products = []  # Now directly storing products in a list
     num_threads = os.cpu_count() # Dynamically adjust the number of threads depending on the machine
 
-    # Create a ThreadPoolExecutor with a maximum of 4 threads
+    # Create a ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Start a thread for each store
         for store in stores:
