@@ -5,6 +5,43 @@ import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
+def neptun_scraping(url, search_term, products):
+
+    body = {
+        "term": search_term,
+        "page": 1,
+        "itemsPerPage": 1000,
+        "sort": 0
+    }
+
+    response = requests.post(url, data=body)
+
+    # Check if the response status code is OK (200)
+    if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+
+        # Check if results exist and noResults is False
+        if data.get("noResults", False) is False and "results" in data:
+            # Loop through all products in the results list
+            for product in data["results"]:
+                base_url = "https://neptun.mk"
+                # Extracting required fields for each product
+                name = product.get("Title", "No Title")
+                price = product.get("DiscountPrice", "No Price")
+                product_url = base_url + product.get("Url", "")
+                img_url = base_url + product.get("ImagePath", "")
+
+                prod = {
+                    'store': 'Neptun',
+                    'name': name,
+                    'price': price,
+                    'url': product_url,
+                    'imgURL': img_url,
+                }
+
+                products.append(prod)
+
 
 def anhoch_scraping(url, products):
     # Send a GET request to the API endpoint
@@ -104,6 +141,8 @@ def scrape_store(store, search_term, products):
     elif name == 'Technomarket':
         url += '#page/1/offset/1000'
         technomarket_scraping(url, products)
+    elif name == 'Neptun':
+        neptun_scraping(store['search_url'], search_term, products)
 
 
 def main():
@@ -113,6 +152,7 @@ def main():
         {'name': 'Anhoch', 'search_url': 'https://www.anhoch.com/products?query='},
         {'name': 'Setec', 'search_url': 'https://setec.mk/index.php?route=product/search&search='},
         {'name': 'Technomarket', 'search_url': 'https://www.tehnomarket.com.mk/products/search?search='},
+        {'name': 'Neptun', 'search_url': 'https://www.neptun.mk/Product/SearchProductsAutocomplete'},
     ]
 
     products = []  # Now directly storing products in a list
