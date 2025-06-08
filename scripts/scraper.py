@@ -4,25 +4,19 @@ import httpx
 import mysql.connector
 from dotenv import load_dotenv
 
-#it all started when..
-dotenv_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(dotenv_path)
-#[FIXME] if you believe this is needed, fix it and add it to the connect_db() function.
-print("DB_HOST:", os.getenv("DB_HOST"))
-print("DB_USERNAME:", os.getenv("DB_USERNAME"))
-print("DB_PASSWORD:", repr(os.getenv("DB_PASSWORD")))
-print("DB_DATABASE:", os.getenv("DB_DATABASE"))
 
 #if u want to run it in docker instead of XAMPP:
 #docker run -d --name laravel-mysql -e MYSQL_DATABASE=concurringprices -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 -v laravel-mysql-data:/var/lib/mysql mysql:latest
 
 def connect_db():
      return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "127.0.0.1"),
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USERNAME", "root"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_DATABASE", "concurringprices"),
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT")),
+        user=os.getenv("DB_USERNAME"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_DATABASE"),
         charset="utf8mb4"
     )
 
@@ -329,7 +323,6 @@ async def main():
             insert_product(cursor, product, category['name'])
 
         # Scrape Setec
-        #TODO:
         setec_items = await scrape_setec(category['setec'])
         print(f"Setec {category['name'].capitalize()}: {len(setec_items)} found")
         for item in setec_items:
