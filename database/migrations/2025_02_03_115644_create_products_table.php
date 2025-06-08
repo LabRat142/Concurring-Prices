@@ -20,7 +20,6 @@ return new class extends Migration
             $table->string('imgURL')->nullable();
             $table->string('store');
             $table->timestamps();
-
             $table->unique(['name', 'url']);
         });
     }

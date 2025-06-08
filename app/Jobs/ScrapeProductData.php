@@ -12,25 +12,13 @@ class ScrapeProductData implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $query;
-    protected $stores;
-
-    /**
-     * Create a new job instance.
-     */
-    public function __construct($query, $stores)
-    {
-        $this->query = $query;
-        $this->stores = escapeshellarg(json_encode($stores));
-    }
-
     /**
      * Execute the job.
      */
     public function handle(): void
     {
         $pythonScript = base_path('scripts/scraper.py');
-        $command = escapeshellcmd("python $pythonScript '{$this->query}' '{$this->stores}'");
+        $command = escapeshellcmd("python $pythonScript");
         shell_exec($command);
     }
 }

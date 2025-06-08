@@ -1,173 +1,347 @@
-import re
-import time
+import asyncio
 import os
-import requests
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
+import httpx
+import mysql.connector
+from dotenv import load_dotenv
 
-def neptun_scraping(url, search_term, products):
+#it all started when..
+dotenv_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+load_dotenv(dotenv_path)
+#[FIXME] if you believe this is needed, fix it and add it to the connect_db() function.
+print("DB_HOST:", os.getenv("DB_HOST"))
+print("DB_USERNAME:", os.getenv("DB_USERNAME"))
+print("DB_PASSWORD:", repr(os.getenv("DB_PASSWORD")))
+print("DB_DATABASE:", os.getenv("DB_DATABASE"))
 
-    body = {
-        "term": search_term,
-        "page": 1,
-        "itemsPerPage": 1000,
-        "sort": 0
+#if u want to run it in docker instead of XAMPP:
+#docker run -d --name laravel-mysql -e MYSQL_DATABASE=concurringprices -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 -v laravel-mysql-data:/var/lib/mysql mysql:latest
+
+def connect_db():
+     return mysql.connector.connect(
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        port=int(os.getenv("DB_PORT", 3306)),
+        user=os.getenv("DB_USERNAME", "root"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_DATABASE", "concurringprices"),
+        charset="utf8mb4"
+    )
+
+
+def create_table_if_not_exists(cursor): #if this table needs to be created for you, add created_at and updated_at, or remove them in the insert function()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255),
+            price DECIMAL(10, 2),
+            url TEXT,
+            available BOOLEAN,
+            imgURL TEXT,
+            store VARCHAR(50),
+            category VARCHAR(50)
+        )
+    """)
+
+
+def delete_category_data(cursor, category):
+    cursor.execute("DELETE FROM products WHERE category = %s", (category,))
+
+
+def insert_product(cursor, product, category):
+    insert_sql = """
+    INSERT INTO products (name, price, url, available, imgURL, store, category, created_at, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+    """
+    cursor.execute(insert_sql, (
+        product['name'],
+        product['price'],
+        product['url'],
+        product['available'],
+        product['imgURL'],
+        product['store'],
+        category
+    ))
+
+
+def parse_neptun_item(item):
+    name = item.get('Title') or item.get('name') or 'No name'
+    try:
+        price = float(item.get('DiscountPrice') or item.get('RegularPrice') or 0)
+    except (ValueError, TypeError):
+        price = 0.0
+    category_path = item.get('Category', {}).get('Url', '')
+    product_path = item.get('Url', '')
+    url = f"https://www.neptun.mk/categories/{category_path}/{product_path}" if category_path and product_path else None
+    # available = None
+    available = item.get('AvailableWebshop', None)
+    imgURL = f"https://www.neptun.mk/{item.get('Thumbnail')}?width=192" if item.get('Thumbnail') else None
+    return {
+        'name': name,
+        'price': price,
+        'url': url,
+        'available': available,
+        'imgURL': imgURL,
+        'store': "Neptun"
     }
 
-    response = requests.post(url, data=body)
 
-    # Check if the response status code is OK (200)
-    if response.status_code == 200:
-        # Parse the JSON response
-        data = response.json()
+def parse_anhoch_item(item):
+    name = item.get('name', 'No name')
+    try:
+        price = float(item.get('selling_price', {}).get('amount', 0))
+    except (ValueError, TypeError):
+        price = 0.0
+    url = f"https://www.anhoch.com/products/{item.get('slug', '')}"
+    available = item.get('is_in_stock', None)
+    imgURL = None
+    if item.get('base_image') and item['base_image'].get('path'):
+        imgURL = item['base_image']['path']
+    elif item.get('files') and len(item['files']) > 0:
+        imgURL = item['files'][0].get('path')
+    return {
+        'name': name,
+        'price': price,
+        'url': url,
+        'available': available,
+        'imgURL': imgURL,
+        'store': "Anhoch"
+    }
 
-        # Check if results exist and noResults is False
-        if data.get("noResults", False) is False and "results" in data:
-            # Loop through all products in the results list
-            for product in data["results"]:
-                base_url = "https://neptun.mk"
-                # Extracting required fields for each product
-                name = product.get("Title", "No Title")
-                price = product.get("DiscountPrice", "No Price")
-                product_url = base_url + product.get("Url", "")
-                img_url = base_url + product.get("ImagePath", "")
+def parse_setec_item(item):
+    name = item.get('normalized_title', 'No name')
+    try:
+        price = float(item.get('variants', [{}])[0].get('calculated_price', {}).get('calculated_amount', 0))
+    except (ValueError, TypeError):
+        price = 0.0
+    get_handle = item.get('handle', None)
+    url = f"https://www.setec.mk/products/{get_handle}"
+    available = False
+    for inventory_item in item.get("variants", []):
+        for inv in inventory_item.get("inventory", []):
+            for loc in inv.get("location_levels", []):
+                if loc.get("available_quantity", 0) > 0:
+                    available = True
 
-                prod = {
-                    'store': 'Neptun',
-                    'name': name,
-                    'price': price,
-                    'url': product_url,
-                    'imgURL': img_url,
-                }
+    imgURL = item.get('thumbnail', None)
+    return {
+        'name': name,
+        'price': price,
+        'url': url,
+        'available': available,
+        'imgURL': imgURL,
+        'store': "Setec"
+    }
 
-                products.append(prod)
 
-
-def anhoch_scraping(url, products):
-    # Send a GET request to the API endpoint
+async def scrape_neptun(category_id, min_price, max_price):
+    url = "https://www.neptun.mk/NeptunCategories/LoadProductsForCategory"
     headers = {
-        'Accept' : 'application/json'
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "Content-Type": "application/json"
     }
-    response = requests.get(url, headers=headers)
 
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Load the JSON response
-        data = response.json()
+    items = []
+    current_page = 1
+    items_per_page = 20
+    total_items = 999
 
-        # Extract the products from the JSON response
-        for product in data['products']['data']:
-            name = product['name']
-            price = float(product['price']['amount'])
-            product_url = f"https://www.anhoch.com/products/{product['slug']}"  # Constructing product URL
-            img_url = product['base_image']['path']
-            available = product['is_in_stock']
-
-            # Create a product dictionary
-            prod = {
-                'store': 'Anhoch',
-                'name': name,
-                'price': price,
-                'url': product_url,
-                'imgURL': img_url,
-                'available': available
-            }
-            # Append the product to the list
-            products.append(prod)
-
-
-
-def setec_scraping(url, products):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-
-    product_elements = soup.select(".product")
-    for product in product_elements:
-        name = product.select_one(".name").text.strip()
-        price = int(''.join(re.findall(r'\d+', product.select_one(".category-price-redovna").text.strip())))
-        img = product.select_one(".image img")
-        img_url = img["data-echo"] or img["src"]
-        available = bool(product.select_one('.ima_zaliha'))
-
-        prod = {
-            'store': 'Setec',
-            'name': name,
-            'price': price,
-            'url': product.select_one(".name a")["href"],
-            'imgURL': img_url,
-            'available': available
+    while True:
+        payload = {
+            "CategoryId": category_id,
+            "Sort": 4,
+            "Manufacturers": [],
+            "Recomended": False,
+            "PriceRange": {"MinPriceValue": min_price, "MaxPriceValue": max_price},
+            "BoolFeatures": [],
+            "DropdownFeatures": [],
+            "MultiSelectFeatures": [],
+            "ShowAllProducts": False,
+            "ItemsPerPage": items_per_page,
+            "CurrentPage": current_page,
+            "TotalItems": total_items
         }
-        products.append(prod)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        products = data.get("Batch", {}).get("Items", [])
+        config = data.get("Batch", {}).get("Config", {})
+        if not products:
+            break
+
+        items.extend(products)
+        total_items = config.get("TotalItems", total_items)
+        max_pages = (total_items + items_per_page - 1) // items_per_page
+        if current_page >= max_pages:
+            break
+        current_page += 1
+
+    return items
 
 
-def technomarket_scraping(url, products):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
+async def scrape_anhoch(endpoint_category):
+    base_url = "https://www.anhoch.com/products"
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+    }
 
-    product_elements = soup.select(".product-fix")
-    for product in product_elements:
-        name = product.select_one(".product-name").text.strip()
-        price_divs = product.select('.product-price')
-        price = None
-        for div in price_divs:
-            if 'Редовна Цена' in div.text:
-                price = int(''.join(re.findall(r'\d+', div.select_one('.nm').text.strip())))
+    results = []
+    max_pages = 50
+    items_per_page = 20
 
-        img_url = product.select_one(".product-figure")["style"]
-        img_url = re.search(r'url\([\'"]?(https?://[^\s\'"]+)', img_url)
-        img_url = img_url.group(1) if img_url else None
-        available = bool(product.select_one('i.icon-ok'))
+    async with httpx.AsyncClient() as client:
+        for config in endpoint_category:
+            page = 1
+            while page <= max_pages:
+                params = {
+                    "query": "",
+                    "categories[0]": config,
+                    "tag": "",
+                    "fromPrice": 0,
+                    "toPrice": 324980,
+                    "inStockOnly": 2,
+                    "sort": "latest",
+                    "perPage": items_per_page,
+                    "page": page
+                }
+                try:
+                    response = await client.get(base_url, params=params, headers=headers)
+                    response.raise_for_status()
+                    data = response.json()
 
-        prod = {
-            'store': 'Technomarket',
-            'name': name,
-            'price': price,
-            'url': product.select_one(".product-name a")["href"],
-            'imgURL': img_url,
-            'available': available
+                    products_page = data.get("products", {})
+                    products = products_page.get("data", [])
+                    if not products:
+                        break
+
+                    results.extend(products)
+
+                    current_page = products_page.get("current_page", page)
+                    last_page = data.get("last_page") or products_page.get("last_page")
+                    if last_page and current_page >= last_page:
+                        break
+
+                    page += 1
+
+                except Exception as e:
+                    print(f"[Anhoch Error on category '{config}'] {e}")
+                    break
+    return results
+
+async def scrape_setec(category_id):
+    url = "https://search.setec.mk/indexes/products/search"
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Authorization": os.getenv("AUTHORIZATION_HEADER")
+    }
+
+    items = []
+    limit = 20
+    offset = 0
+
+    while True:
+        payload = {
+            "limit": limit,
+            "offset": offset,
+            "filter": (
+                f"product_categories.id = '{category_id}' "
+                "AND variants.calculated_price.calculated_amount >= 1 "
+                "AND variants.calculated_price.calculated_amount <= 250000 "
+                "AND status = 'published' AND is_web_active = 'true'"
+            ),
+            "sort": ["variants.calculated_price.calculated_amount:asc"],
+            "matchingStrategy": "all"
         }
-        products.append(prod)
 
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
 
-def scrape_store(store, search_term, products):
-    name = store['name']
-    url = store['search_url'] + search_term
-    if name == 'Anhoch':
-        url += '&perPage=1000'
-        anhoch_scraping(url, products)
-    elif name == 'Setec':
-        url += '&limit=1000'
-        setec_scraping(url, products)
-    elif name == 'Technomarket':
-        url += '#page/1/offset/1000'
-        technomarket_scraping(url, products)
-    elif name == 'Neptun':
-        neptun_scraping(store['search_url'], search_term, products)
+        products = data.get("hits", [])
+        if not products:
+            break
 
+        items.extend(products)
+        offset += limit
 
-def main():
+        if offset >= data.get("estimatedTotalHits", 0):
+            break
 
-    search_term = 'ram'
-    stores = [
-        {'name': 'Anhoch', 'search_url': 'https://www.anhoch.com/products?query='},
-        {'name': 'Setec', 'search_url': 'https://setec.mk/index.php?route=product/search&search='},
-        {'name': 'Technomarket', 'search_url': 'https://www.tehnomarket.com.mk/products/search?search='},
-        {'name': 'Neptun', 'search_url': 'https://www.neptun.mk/Product/SearchProductsAutocomplete'},
+    return items
+
+async def main():
+    db = connect_db()
+    cursor = db.cursor()
+    create_table_if_not_exists(cursor)
+    db.commit()
+
+    # Define categories with their respective parameters
+    categories = [
+        {
+            'name': 'laptop',
+            'neptun': {'category_id': 24, 'min_price': 0, 'max_price': 999999},
+            'anhoch': ['site-laptopi'],
+            'setec': 'pcat_01JFZ1W5Q38VHNF746YGVYZ0PM'
+        },
+        {
+            'name': 'smartphone',
+            'neptun': {'category_id': 151, 'min_price': 1599, 'max_price': 119999},
+            'anhoch': ['mobilni-telefoni'],
+            'setec': 'pcat_01JFZ1WAWCQ8R8G4KPGDNN7RG1'
+        },
+        {
+            'name': 'computers',
+            'neptun': {'category_id': 236, 'min_price': 29999, 'max_price': 77999},
+            'anhoch': ['gaming-konfiguracii', 'office-konfiguracii'],
+            'setec': 'pcat_01JFZ1W6PYQMK01N93VXT67DJ9'
+        }
     ]
 
-    products = []  # Now directly storing products in a list
-    num_threads = os.cpu_count() # Dynamically adjust the number of threads depending on the machine
+    for category in categories:
+        print(f"Processing category: {category['name']}")
 
-    # Create a ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        # Start a thread for each store
-        for store in stores:
-            executor.submit(scrape_store, store, search_term, products)
+        # Delete existing data for this category
+        delete_category_data(cursor, category['name'])
+        db.commit()
 
-    # TODO: Add products to the database or process further
-    for product in products:
-        print(product)
+        # Scrape Neptun
+        neptun_items = await scrape_neptun(
+            category['neptun']['category_id'],
+            category['neptun']['min_price'],
+            category['neptun']['max_price']
+        )
+        print(f"Neptun {category['name'].capitalize()}: {len(neptun_items)} found")
+        for item in neptun_items:
+            product = parse_neptun_item(item)
+            insert_product(cursor, product, category['name'])
+
+        # Scrape Anhoch
+        anhoch_items = await scrape_anhoch(category['anhoch'])
+        print(f"Anhoch {category['name'].capitalize()}: {len(anhoch_items)} found")
+        for item in anhoch_items:
+            product = parse_anhoch_item(item)
+            insert_product(cursor, product, category['name'])
+
+        # Scrape Setec
+        #TODO:
+        setec_items = await scrape_setec(category['setec'])
+        print(f"Setec {category['name'].capitalize()}: {len(setec_items)} found")
+        for item in setec_items:
+            product = parse_setec_item(item)
+            insert_product(cursor, product, category['name'])
+
+        db.commit()
+        print(f"✅ All '{category['name']}' products inserted into the database.\n")
+
+    cursor.close()
+    db.close()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
