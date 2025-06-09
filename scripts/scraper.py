@@ -330,7 +330,7 @@ async def main():
             insert_product(cursor, product, category['name'])
 
         db.commit()
-        print(f"✅ All '{category['name']}' products inserted into the database.\n")
+        print(f"All '{category['name']}' products inserted into the database.\n")
 
     cursor.close()
     db.close()
