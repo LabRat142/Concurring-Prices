@@ -1,49 +1,41 @@
-FROM php:8.2-apache
+FROM php:8.2
 
-# Install system dependencies, PHP and Python
-RUN apt-get update && apt-get install -y \
+# Install system dependencies, PHP extensions, Composer, Python, and pip
+RUN apt-get update -y && apt-get install -y \
+    openssl \
+    zip \
+    unzip \
+    git \
     python3 \
     python3-venv \
     python3-pip \
-    git \
-    unzip \
-    libzip-dev \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    curl \
-    && docker-php-ext-install pdo_mysql mbstring zip exif pcntl bcmath gd \
-    && a2enmod rewrite \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && docker-php-ext-install pdo pdo_mysql mbstring bcmath gd \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Set working directory to /app
+WORKDIR /app
 
-# Set working directory
-WORKDIR /var/www/html
-
-# Copy composer files first (for cache)
-COPY composer.json composer.lock ./
+# Copy the Laravel app into the container's /app directory
+COPY . /app
 
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install
 
-# Copy full Laravel app
-COPY . /var/www/html
-
-# Set Apache to serve from /public
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
- && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
-
-# Set up Python virtual environment
+# Set up the Python virtual environment
 RUN python3 -m venv /opt/venv \
- && /opt/venv/bin/pip install --no-cache-dir -r /var/www/html/requirements.txt
+    && /opt/venv/bin/pip install --no-cache-dir -r /app/requirements.txt
+
+# Ensure storage and cache are writable
+RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache
+
+# Set environment for Python venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Laravel permissions
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+#Generate app key
+CMD php artisan key:generate
 
-EXPOSE 80
-CMD ["apache2-foreground"]
+# Start Laravel server (use PHP's built-in server for local dev)
+ENTRYPOINT ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+
+# Expose port 8000 for the PHP built-in server
+EXPOSE 8000
