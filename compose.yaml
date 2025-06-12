@@ -3,7 +3,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/apache/Dockerfile
+#      dockerfile: docker/apache/Dockerfile
     container_name: laravel_app
     ports:
       - "8000:80"
