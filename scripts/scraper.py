@@ -27,6 +27,7 @@ def create_table_if_not_exists(cursor): #if this table needs to be created for y
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(255),
             price DECIMAL(10, 2),
+            discount_price DECIMAL(10, 2),
             url TEXT,
             available BOOLEAN,
             imgURL TEXT,
@@ -42,12 +43,13 @@ def delete_category_data(cursor, category):
 
 def insert_product(cursor, product, category):
     insert_sql = """
-    INSERT INTO products (name, price, url, available, imgURL, store, category, created_at, updated_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+    INSERT INTO products (name, price, discount_price, url, available, imgURL, store, category, created_at, updated_at)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
     """
     cursor.execute(insert_sql, (
         product['name'],
         product['price'],
+        product['discount_price'],
         product['url'],
         product['available'],
         product['imgURL'],
@@ -59,9 +61,11 @@ def insert_product(cursor, product, category):
 def parse_neptun_item(item):
     name = item.get('Title') or item.get('name') or 'No name'
     try:
-        price = float(item.get('DiscountPrice') or item.get('RegularPrice') or 0)
+        price = float(item.get('RegularPrice') or 0)
+        discount_price = float(item.get('DiscountPrice') or 0)
     except (ValueError, TypeError):
         price = 0.0
+        discount_price = 0.0
     category_path = item.get('Category', {}).get('Url', '')
     product_path = item.get('Url', '')
     url = f"https://www.neptun.mk/categories/{category_path}/{product_path}" if category_path and product_path else None
@@ -71,6 +75,7 @@ def parse_neptun_item(item):
     return {
         'name': name,
         'price': price,
+        'discount_price': discount_price,
         'url': url,
         'available': available,
         'imgURL': imgURL,
@@ -81,9 +86,15 @@ def parse_neptun_item(item):
 def parse_anhoch_item(item):
     name = item.get('name', 'No name')
     try:
-        price = float(item.get('selling_price', {}).get('amount', 0))
+        price = float(item.get('price', {}).get('amount', 0))
+        get_discount = item.get('special_price')
+        if get_discount is not None:
+            discount_price = float(get_discount.get('amount') or 0)
+        else:
+            discount_price = 0.0
     except (ValueError, TypeError):
         price = 0.0
+        discount_price = 0.0
     url = f"https://www.anhoch.com/products/{item.get('slug', '')}"
     available = item.get('is_in_stock', None)
     imgURL = None
@@ -94,6 +105,7 @@ def parse_anhoch_item(item):
     return {
         'name': name,
         'price': price,
+        'discount_price': discount_price,
         'url': url,
         'available': available,
         'imgURL': imgURL,
@@ -103,9 +115,11 @@ def parse_anhoch_item(item):
 def parse_setec_item(item):
     name = item.get('normalized_title', 'No name')
     try:
-        price = float(item.get('variants', [{}])[0].get('calculated_price', {}).get('calculated_amount', 0))
+        price = float(item.get('variants', [{}])[0].get('calculated_price', {}).get('original_amount', 0))
+        discount_price = float(item.get('variants', [{}])[0].get('calculated_price', {}).get('calculated_amount', 0))
     except (ValueError, TypeError):
         price = 0.0
+        discount_price = 0.0
     get_handle = item.get('handle', None)
     url = f"https://www.setec.mk/products/{get_handle}"
     available = False
@@ -119,6 +133,7 @@ def parse_setec_item(item):
     return {
         'name': name,
         'price': price,
+        'discount_price': discount_price,
         'url': url,
         'available': available,
         'imgURL': imgURL,
