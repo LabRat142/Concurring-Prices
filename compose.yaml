@@ -4,30 +4,24 @@ services:
       context: .
     container_name: laravel_app
     ports:
-      - "8000:8000"  # Expose port 8000 from the container to port 8000 on your machine
+      - "8000:8000"
     volumes:
-      - .:/var/www/html  # Mount the current directory to /var/www/html in the container
+      - .:/var/www/html
     depends_on:
-        db:
-          condition: service_started # Ensure the app starts after the db container is ready
-    environment:
-      DB_HOST: db  # Set DB_HOST to the name of the db container (it's the service name)
-      DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE}  # Make sure these values exist in your .env file
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
+      db:
+        condition: service_started # Ensure the app starts after the db container is ready
 
   db:
     image: mysql:5.7
     container_name: laravel_db
     restart: always
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE}  # Refer to your .env file for these values
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}  # Use the same DB_PASSWORD as your Laravel app
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3306:3306"  # Expose MySQL's port to your local machine
+      - "3306:3306"
     volumes:
-      - db_data:/var/lib/mysql  # Persist MySQL data between restarts
+      - db_data:/var/lib/mysql
 
 volumes:
   db_data:
