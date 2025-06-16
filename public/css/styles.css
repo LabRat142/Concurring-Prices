@@ -1,0 +1,293 @@
+/* Teal + Orange palette */
+:root {
+    --primary: #00796b;
+    --primary-light: #48a999;
+    --background: #f1f8e9;
+    --surface: #ffffff;
+    --text: #263238;
+    --muted: #757575;
+    --accent: #ff7043;
+    --danger: #d32f2f;
+    --shadow-light: rgba(0, 0, 0, 0.05);
+    --shadow-medium: rgba(0, 0, 0, 0.1);
+}
+
+body {
+    background-color: var(--background);
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text);
+    line-height: 1.5;
+}
+
+/* HEADER BAR */
+.header-bar {
+    background: linear-gradient(90deg, var(--primary-light), var(--primary));
+    color: white;
+    border-radius: 0 0 10px 10px;
+    padding: 0.75rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.header-bar .d-flex > div {
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+.header-bar h1 {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.75rem;
+    letter-spacing: 1px;
+}
+
+/* SIDEBAR */
+.sidebar-box {
+    background: var(--surface);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px var(--shadow-light);
+    padding: 1.5rem 1rem;
+    margin-bottom: 1.5rem;
+}
+.sidebar-box .form-label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+.sidebar-box .input-group .form-control {
+    border-radius: 4px 0 0 4px;
+}
+.sidebar-box .input-group .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    border-radius: 0 4px 4px 0;
+}
+.sidebar-box .btn-secondary {
+    background: var(--muted);
+    border: none;
+    font-weight: 500;
+}
+.sidebar-box .form-check-label {
+    margin-left: 0.25rem;
+    font-size: 0.9rem;
+}
+
+/* PRICE RANGE SLIDER */
+.range-slider-container {
+    position: relative;
+    height: 50px;
+}
+.range-slider-container .track-bg {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: #ddd;
+    transform: translateY(-50%);
+    z-index: 1;
+    border-radius: 2px;
+}
+#rangeTrack {
+    position: absolute;
+    top: 50%;
+    height: 4px;
+    background: var(--accent);
+    transform: translateY(-50%);
+    z-index: 2;
+    border-radius: 2px;
+}
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    pointer-events: auto;
+    position: absolute;
+    width: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 0;
+    z-index: 3;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 4;
+    margin-top: -6px;
+}
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 4;
+}
+
+/* NAV TABS */
+.nav-tabs {
+    border-bottom: none;
+    margin-bottom: 1rem;
+}
+.nav-tabs .nav-link {
+    border: none;
+    color: var(--primary);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 8px 8px 0 0;
+    transition: background 0.2s;
+}
+.nav-tabs .nav-link:hover {
+    background: var(--primary-light);
+    color: #fff;
+}
+.nav-tabs .nav-link.active {
+    background-color: var(--primary);
+    color: #fff;
+}
+
+/* PRODUCT CARDS */
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 12px var(--shadow-medium);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 18px var(--shadow-medium);
+}
+.card-img-top {
+    background: var(--background);
+    padding: 1rem;
+    object-fit: contain;
+    height: 200px;
+}
+.card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.price {
+    color: var(--accent);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.offer-count {
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+.card-text small {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.btn-outline-primary {
+    border-color: var(--primary);
+    color: var(--primary);
+    font-size: 0.9rem;
+    padding: 0.4rem;
+    transition: background 0.2s, color 0.2s;
+}
+.btn-outline-primary:hover {
+    background: var(--primary);
+    color: #fff;
+}
+
+/* PAGINATION */
+.pagination .page-link {
+    border-color: var(--shadow-light);
+    color: var(--primary);
+}
+.pagination .page-item.active .page-link {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+/* ——— Sidebar “card” with accent stripe ——— */
+.sidebar-box {
+    position: relative;
+    background: var(--surface);
+    border-radius: 12px;
+    box-shadow: 0 2px 12px var(--shadow-light);
+    padding: 2rem 1rem;
+    margin-bottom: 2rem;
+}
+.sidebar-box::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent);
+    border-radius: 4px 0 0 4px;
+}
+
+/* ——— Section headings ——— */
+.section-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--primary);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+/* ——— Spacing between each filter group ——— */
+.sidebar-section {
+    margin-bottom: 2rem;
+}
+
+/* ——— Inputs & focus styling ——— */
+.input-group .form-control {
+    border: 1px solid var(--shadow-light);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-group .form-control:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0.2rem rgba(255,112,67,0.25);
+}
+
+/* ——— Checkboxes spacing ——— */
+.form-check {
+    margin-bottom: 0.75rem;
+}
+
+/* ——— Reset button hover ——— */
+.btn-secondary {
+    background: var(--muted);
+    transition: background 0.2s;
+}
+.btn-secondary:hover {
+    background: var(--text);
+    color: #fff;
+}
+
+/* ——— Slider container tweaks (if not already present) ——— */
+.range-slider-container input[type="range"] {
+    position: absolute !important;
+    top: 50% !important;
+    left: 0;
+    width: 100%;
+    transform: translateY(-50%) !important;
+    height: 0;
+    background: transparent;
+    pointer-events: auto;
+    z-index: 3;
+}
+
+/* 2) Center the thumb on the (now centered) input line */
+.range-slider-container input[type="range"]::-webkit-slider-thumb,
+.range-slider-container input[type="range"]::-moz-range-thumb,
+.range-slider-container input[type="range"]::-ms-thumb {
+    margin-top: 0 !important;       /* cancel any JS margin hacks */
+    position: relative;             /* allow a top/transform if you prefer */
+    top: 50%;                       /* move the thumb halfway down the input */
+    transform: translateY(-50%);    /* pull it back up half its own height */
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: var(--accent);      /* or #0d6efd if you like the JS color */
+    z-index: 4;
+}
