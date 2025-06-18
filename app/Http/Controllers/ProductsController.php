@@ -20,9 +20,10 @@ class ProductsController extends Controller
         $selectedCategories = $request->input('categories');
         $globalMinPrice = Products::min('price');
         $globalMaxPrice = Products::max('price');
-
         $minPriceInput = $request->input('min_price', $globalMinPrice);
         $maxPriceInput = $request->input('max_price', $globalMaxPrice);
+        $sort        = $request->input('sort');
+        $hasDiscount = $request->boolean('has_discount');
 
         // Get all distinct stores and categories
         $allStores = Products::select('store')->distinct()->pluck('store');
@@ -36,9 +37,22 @@ class ProductsController extends Controller
             ->when($selectedCategories, fn($q) => $q->whereIn('category', $selectedCategories))
             ->when($minPriceInput, fn($q) => $q->where('price', '>=', $minPriceInput))
             ->when($maxPriceInput, fn($q) => $q->where('price', '<=', $maxPriceInput))
-            ->orderBy('price')
-            ->paginate(20);
+            ->when($request->boolean('has_discount'), fn($q) => $q->where('discount_price', '>', 0))
+            // sort low → high
+            ->when($sort === 'price_asc', fn($q) => $q->orderBy('price', 'asc'))
+            // sort high → low
+            ->when($sort === 'price_desc', fn($q) => $q->orderBy('price', 'desc'))
+            // sort by largest % discount (only if has_discount is on)
+            ->when($sort === 'discount_desc' && $hasDiscount, function($q) {
+                // (price - discount_price) / price DESC
+                return $q->orderByRaw('(price - discount_price) / price DESC');
+            })
+            // fallback default sort
+            ->when(!$sort, fn($q) => $q->orderBy('price', 'asc'));
+//            ->orderBy('price')
+//            ->paginate(20);
 
+        $products = $products->paginate(20);
         // Dispatch a job to scrape updated data in the background
         ScrapeProductData::dispatch($query, Config::get('stores.stores'));
 

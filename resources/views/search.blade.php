@@ -39,7 +39,7 @@
             <form action="{{ url('/') }}" method="GET">
 
                 {{-- preserve filters --}}
-                @foreach(request()->except(['stores','categories','page']) as $name=>$value)
+                @foreach(request()->except(['stores','categories','page','has_discount']) as $name=>$value)
                     @if(is_array($value))
                         @foreach($value as $val)
                             <input type="hidden" name="{{ $name }}[]" value="{{ $val }}">
@@ -60,6 +60,23 @@
                             value="{{ request('query') }}"
                             placeholder="Пребарувај производи…">
                         <button class="btn btn-primary" type="submit">🔍</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="form-check">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            name="has_discount"
+                            id="hasDiscount"
+                            value="1"
+                            {{ request('has_discount') ? 'checked' : '' }}
+                            onchange="this.form.submit()"
+                        >
+                        <label class="form-check-label" for="hasDiscount">
+                            On sale only
+                        </label>
                     </div>
                 </div>
 
@@ -160,6 +177,56 @@
                 </li>
             </ul>
 
+            {{-- 1) separator line --}}
+            <hr class="my-4">
+
+            {{-- 2) flex-row with some padding and margin --}}
+            <div class="d-flex justify-content-between align-items-center mb-5 px-3">
+
+                {{-- actual pagination --}}
+                <div>
+                    {!! $products->withQueryString()->onEachSide(1)->links('pagination::bootstrap-5') !!}
+                </div>
+
+                {{-- empty dropdown for future filters --}}
+                <form id="sortForm" method="GET" class="ms-auto d-flex align-items-center">
+                    {{-- 1) carry over all current GET params except page & sort --}}
+                    @foreach(request()->except(['page','sort']) as $name => $value)
+                        @if(is_array($value))
+                            @foreach($value as $v)
+                                <input type="hidden" name="{{ $name }}[]" value="{{ $v }}">
+                            @endforeach
+                        @else
+                            <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                        @endif
+                    @endforeach
+
+                    {{-- 2) the actual select --}}
+                    <select
+                        name="sort"
+                        class="form-select"
+                        style="width: auto;"
+                        onchange="document.getElementById('sortForm').submit()"
+                    >
+                        <option value="">Sort by…</option>
+                        <option value="price_asc"  {{ request('sort')=='price_asc'  ? 'selected':'' }}>
+                            Price: Low → High
+                        </option>
+                        <option value="price_desc" {{ request('sort')=='price_desc' ? 'selected':'' }}>
+                            Price: High → Low
+                        </option>
+
+                        {{-- 3) only when “On sale only” is checked --}}
+                        @if(request()->boolean('has_discount'))
+                            <option value="discount_desc" {{ request('sort')=='discount_desc' ? 'selected':'' }}>
+                                Highest Discount %
+                            </option>
+                        @endif
+                    </select>
+                </form>
+
+            </div>
+
             <!-- Product Cards -->
             @if($products->isEmpty())
                 <p>No products found for your search query.</p>
@@ -179,6 +246,14 @@
                                         <small>Store: {{ $product->store }}</small><br>
                                         <small>Updated: {{ \Carbon\Carbon::parse($product->updated_at)->diffForHumans() }}</small>
                                     </p>
+                                    {{-- only show this when there’s a discount --}}
+                                    @if($product->discount_price > 0)
+                                        <p class="card-text">
+                                            <strong class="text-danger">
+                                                Discounted: {{ number_format($product->discount_price) }} MKD
+                                            </strong>
+                                        </p>
+                                    @endif
                                     <div class="mt-auto">
                                         <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100" target="_blank">View Product</a>
                                     </div>
