@@ -5,8 +5,6 @@ services:
     container_name: laravel_app
     ports:
       - "8000:8000"
-    volumes:
-      - .:/var/www/html
     depends_on:
       db:
         condition: service_started # Ensure the app starts after the db container is ready
