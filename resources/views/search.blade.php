@@ -38,7 +38,15 @@
             <form action="{{ url('/') }}" method="GET">
 
                 {{-- preserve filters --}}
-                @foreach(request()->except(['stores','categories','page','has_discount']) as $name=>$value)
+                @foreach(request()->except([
+                    'stores',
+                    'categories',
+                    'page',
+                    'has_discount',
+                    'brands',
+                    'computer_types',
+                    'laptop',
+                ]) as $name => $value)
                     @if(is_array($value))
                         @foreach($value as $val)
                             <input type="hidden" name="{{ $name }}[]" value="{{ $val }}">
