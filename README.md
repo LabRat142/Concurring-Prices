@@ -88,8 +88,9 @@ To execute the scraper script and start scraping the required data, use the foll
 ```bash
 python scripts/scraper.py
 ```
-### 6. Run the Development Server
+### 6. Generate App Key & Run the Development Server
 
 ```bash
+php artisan key:generate
 php artisan serve
 ```
