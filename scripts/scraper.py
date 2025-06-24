@@ -20,7 +20,7 @@ def connect_db():
         charset="utf8mb4"
     )
 
-
+# The 2 Following Functions are for Testing Purposes Only:
 def create_table_if_not_exists(cursor): #if this table needs to be created for you, add created_at and updated_at, or remove them in the insert function()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS products (
@@ -42,21 +42,99 @@ def delete_category_data(cursor, category):
 
 
 def insert_product(cursor, product, category):
-    insert_sql = """
-    INSERT INTO products (name, price, discount_price, url, available, imgURL, store, category, created_at, updated_at)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+    # Get Store ID
+    store_sql = """
+    SELECT id FROM stores WHERE name LIKE %s
     """
-    cursor.execute(insert_sql, (
-        product['name'],
-        product['price'],
-        product['discount_price'],
-        product['url'],
-        product['available'],
-        product['imgURL'],
-        product['store'],
-        category
-    ))
+    cursor.execute(store_sql, (product['store'],))
+    store_id = cursor.fetchone()[0]
 
+    # Check If Product Exists
+    product_sql = """
+    SELECT id FROM products WHERE name = %s
+    """
+    cursor.execute(product_sql, (product['name'],))
+    result = cursor.fetchone()
+
+    # If product doesn't exist
+    if result is None:
+        # Create new product
+        insert_product_sql = """
+        INSERT INTO products (name, category, created_at, updated_at)
+        VALUES (%s, %s, NOW(), NOW())
+        """
+        cursor.execute(insert_product_sql, (
+            product['name'],
+            category
+        ))
+
+        # Get id of new product
+        get_id_sql = """
+        SELECT id FROM products WHERE name LIKE %s
+        """
+        cursor.execute(get_id_sql,(product['name'],))
+        result = cursor.fetchone()
+        if result:
+            new_prod_id = result[0]
+
+        # Create new product-store relation
+        insert_prices_sql = """
+        INSERT INTO prices (product_id, store_id, price, discount_price, url, available, imgURL,  created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        """
+        cursor.execute(insert_prices_sql, (
+            new_prod_id,
+            store_id,
+            product['price'],
+            product['discount_price'],
+            product['url'],
+            product['available'],
+            product['imgURL'],
+        ))
+    # else if product exists
+    else:
+        product_id = result[0]
+
+        # Check if Product-Store relation exists
+        prices_sql = """
+        SELECT id FROM prices
+        WHERE product_id = %s AND store_id = %s
+        """
+        cursor.execute(prices_sql, (product_id, store_id))
+        result = cursor.fetchone()
+
+        # If relation doesn't exist
+        if result is None:
+            #Insert new relation
+            insert_prices_sql = """
+            INSERT INTO prices (product_id, store_id, price, discount_price, url, available, imgURL,  created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """
+            cursor.execute(insert_prices_sql, (
+                product_id,
+                store_id,
+                product['price'],
+                product['discount_price'],
+                product['url'],
+                product['available'],
+                product['imgURL'],
+            ))
+        # else if relation exists
+        else:
+            prices_id = result[0]
+            # Update relation
+            update_prices_sql = """
+            UPDATE prices SET price = %s, discount_price = %s, url = %s, available = %s, imgURL = %s, updated_at = NOW()
+            WHERE id = %s
+            """
+            cursor.execute(update_prices_sql,(
+                product['price'],
+                product['discount_price'],
+                product['url'],
+                product['available'],
+                product['imgURL'],
+                prices_id
+            ))
 
 def parse_neptun_item(item):
     name = item.get('Title') or item.get('name') or 'No name'
