@@ -52,7 +52,7 @@ def insert_product(cursor, product, category):
     result = cursor.fetchone()
     if result is None:
         insert_store_sql = """
-        INSERT INTO stores (name) VALUES (%s)
+        INSERT INTO stores (name) VALUES (%s,)
         """
         cursor.execute(insert_store_sql,(product['store']),)
         get_store_id_sql = """
