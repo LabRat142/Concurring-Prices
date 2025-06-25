@@ -66,7 +66,7 @@ def insert_product(cursor, product, category):
         store_id = result[0]
 
     if store_id is None:
-        break
+        return
 
     # Check If Product Exists
     product_sql = """
