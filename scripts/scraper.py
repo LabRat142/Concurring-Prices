@@ -46,8 +46,27 @@ def insert_product(cursor, product, category):
     store_sql = """
     SELECT id FROM stores WHERE name LIKE %s
     """
+
+    store_id = None
     cursor.execute(store_sql, (product['store'],))
-    store_id = cursor.fetchone()[0]
+    result = cursor.fetchone()
+    if result is None:
+        insert_store_sql = """
+        INSERT INTO stores (name) VALUES (%s)
+        """
+        cursor.execute(insert_store_sql,(product['store']),)
+        get_store_id_sql = """
+        SELECT id FROM stores WHERE name LIKE %s
+        """
+        cursor.execute(get_store_id_sql,(product['store']),)
+        result = cursor.fetchone()
+        if result:
+            store_id = result[0]
+    else:
+        store_id = result[0]
+
+    if store_id is None:
+        break
 
     # Check If Product Exists
     product_sql = """
