@@ -52,13 +52,13 @@ def insert_product(cursor, product, category):
     result = cursor.fetchone()
     if result is None:
         insert_store_sql = """
-        INSERT INTO stores (name) VALUES (%s,)
+        INSERT INTO stores (name, created_at, updated_at) VALUES (%s, NOW(), NOW())
         """
-        cursor.execute(insert_store_sql,(product['store']),)
+        cursor.execute(insert_store_sql,(product['store'],))
         get_store_id_sql = """
         SELECT id FROM stores WHERE name LIKE %s
         """
-        cursor.execute(get_store_id_sql,(product['store']),)
+        cursor.execute(get_store_id_sql,(product['store'],))
         result = cursor.fetchone()
         if result:
             store_id = result[0]
@@ -143,10 +143,11 @@ def insert_product(cursor, product, category):
             prices_id = result[0]
             # Update relation
             update_prices_sql = """
-            UPDATE prices SET price = %s, discount_price = %s, url = %s, available = %s, imgURL = %s, updated_at = NOW()
+            UPDATE prices SET store_id = %s, price = %s, discount_price = %s, url = %s, available = %s, imgURL = %s, updated_at = NOW()
             WHERE id = %s
             """
             cursor.execute(update_prices_sql,(
+                store_id,
                 product['price'],
                 product['discount_price'],
                 product['url'],
