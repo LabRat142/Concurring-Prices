@@ -41,10 +41,10 @@ class ProductsController extends Controller
             ->with([
                 'prices' => function ($query) use ($isAvailable) {
                     if ($isAvailable) {
-                        $query->where('available', 1); // Filter only available prices
+                        $query->where('available', 1);
                     }
                 },
-                'prices.store' // Still eager load the store relation
+                'prices.store'
             ])
             ->when($query, function ($q) use ($query) {
                 $words = collect(explode(' ', $query))
@@ -93,7 +93,5 @@ class ProductsController extends Controller
             'minPriceInput' => $minPriceInput,
             'maxPriceInput' => $maxPriceInput,
         ]);
-
-
     }
 }

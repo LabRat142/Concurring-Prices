@@ -71,7 +71,7 @@
                     </div>
                 </div>
 
-                <!-- DISCOUNTED FILTER -->
+                <!-- DISCOUNTED & AVAILABILITY FILTER -->
                 <div class="sidebar-section">
                     <div class="form-check">
                         <input
@@ -87,8 +87,6 @@
                             На попуст
                         </label>
                     </div>
-                </div>
-                <div class="sidebar-section">
                     <div class="form-check">
                         <input
                             class="form-check-input"
