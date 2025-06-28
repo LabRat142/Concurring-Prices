@@ -24,6 +24,8 @@ return new class extends Migration
             $table->string('imgURL')->nullable();
 
             $table->timestamps();
+
+            $table->unique(['product_id', 'store_id']);
         });
     }
 

@@ -6,5 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Products extends Model
 {
-    //
+    public function prices()
+    {
+        return $this->hasMany(Prices::class);
+    }
 }
