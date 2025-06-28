@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Prices;
-use App\Models\Products;
-use App\Models\Stores;
+use App\Models\Price;
+use App\Models\Product;
+use App\Models\Store;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ProductsController extends Controller
 {
@@ -18,54 +19,70 @@ class ProductsController extends Controller
         $category = $request->input('category');
         $selectedStores = $request->input('stores');
         $selectedCategories = $request->input('categories');
-        $globalMinPrice = Prices::query()->min('price');
-        $globalMaxPrice = Prices::query()->max('price');
+        $globalMinPrice = Price::query()->min('price');
+        $globalMaxPrice = Price::query()->max('price');
         $minPriceInput = $request->input('min_price', $globalMinPrice);
         $maxPriceInput = $request->input('max_price', $globalMaxPrice);
         $sort = $request->input('sort');
         $hasDiscount = $request->boolean('has_discount');
+        $isAvailable = $request->boolean('is_available');
         $brands = $request->input('brands');
 
         // Get all distinct stores and categories
-        $allStores = Stores::query()->select('name')->distinct()->pluck('name');
-        $allCategories = Products::query()->select('category')->distinct()->pluck('category');
+        $allStores = Store::query()->select('name')->distinct()->pluck('name');
+        $allCategories = Product::query()->select('category')->distinct()->pluck('category');
+
+        $product_columns = Schema::getColumnListing('products');
 
         // Get existing data from the database
-        $products = Prices::query()
-            ->with(['product:id,name', 'store:id,name'])
-            ->when($query, fn($q) => $q->whereHas('product', fn($p) => $p->where('name', 'LIKE', "%{$query}%")))
-            ->when($category, fn($q) => $q->whereHas('product', fn($p) => $p->where('category', $category)))
-            ->when($selectedStores, fn($q) => $q->whereHas('store', fn($s) => $s->whereIn('name', $selectedStores)))
-            ->when($selectedCategories, fn($q) => $q->whereHas('product', fn($p) => $p->whereIn('category', $selectedCategories)))
-            ->when($minPriceInput, fn($q) => $q->where('price', '>=', $minPriceInput))
-            ->when($maxPriceInput, fn($q) => $q->where('price', '<=', $maxPriceInput))
+        $products = Product::query()
+            ->selectRaw('products.*, MIN(prices.price) as lowest_price')
+            ->leftJoin('prices', 'products.id', '=', 'prices.product_id')
+            ->with([
+                'prices' => function ($query) use ($isAvailable) {
+                    if ($isAvailable) {
+                        $query->where('available', 1); // Filter only available prices
+                    }
+                },
+                'prices.store' // Still eager load the store relation
+            ])
+            ->when($query, function ($q) use ($query) {
+                $words = collect(explode(' ', $query))
+                    ->filter() // remove empty values
+                    ->map(fn($word) => trim($word));
+
+                foreach ($words as $word) {
+                    $q->where('products.name', 'LIKE', '%' . $word . '%');
+                }
+            })
+            ->when($category, fn($q) => $q->where('products.category', $category))
+            ->when($selectedStores, fn($q) => $q->whereHas('prices.store', fn($s) =>
+                $s->whereIn('name', $selectedStores)))
+            ->when($selectedCategories, fn($q) => $q->whereIn('products.category', $selectedCategories))
+            ->when($minPriceInput, fn($q) => $q->whereHas('prices', fn($p) =>
+                $p->where('price', '>=', $minPriceInput)))
+            ->when($maxPriceInput, fn($q) => $q->whereHas('prices', fn($p) =>
+                $p->where('price', '<=', $maxPriceInput)))
             ->when($request->boolean('has_discount'), fn($q) => $q->where('discount_price', '>', 0))
             //sort by brands
             ->when($brands, fn($q) =>
-                $q->whereHas('product', fn($p) =>
-                    $p->where(function($query) use ($brands) {
-                        foreach ($brands as $brand) {
-                            $query->orWhere('name', 'LIKE', "%{$brand}%");
-                        }
-                    })
-                )
+                $q->where(function($query) use ($brands) {
+                    foreach ($brands as $brand) {
+                        $query->orWhere('name', 'LIKE', "%$brand%");
+                    }
+                })
             )
             // sort low → high
-            ->when($sort === 'price_asc', fn($q) => $q->orderBy('price', 'asc'))
+            ->when($sort === 'price_asc', fn($q) => $q->orderBy('lowest_price', 'asc'))
             // sort high → low
-            ->when($sort === 'price_desc', fn($q) => $q->orderBy('price', 'desc'))
+            ->when($sort === 'price_desc', fn($q) => $q->orderBy('lowest_price', 'desc'))
             // sort by largest % discount (only if has_discount is on)
-            ->when($sort === 'discount_desc' && $hasDiscount, function($q) {
-                // (price - discount_price) / price DESC
-                return $q->orderByRaw('(price - discount_price) / price DESC');
-            })
+            ->when($sort === 'discount_desc' && $hasDiscount, fn($q) =>
+            $q->orderByRaw('MAX( (prices.price - prices.discount_price) / prices.price ) DESC'))
             // fallback default sort
-            ->when(!$sort, fn($q) => $q->orderBy('price', 'asc'));
-//            ->orderBy('price')
-//            ->paginate(20);
-
-        $products = $products->paginate(20);
-
+            ->when(!$sort, fn($q) => $q->orderBy('lowest_price', 'asc'))
+            ->groupBy(...collect($product_columns)->map(fn($col) => "products.$col")->all())
+            ->paginate(20);
 
         return view('search', [
             'products' => $products,

@@ -4,15 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Prices extends Model
+class Price extends Model
 {
     public function product()
     {
-        return $this->belongsTo(Products::class);
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function store()
     {
-        return $this->belongsTo(Stores::class);
+        return $this->belongsTo(Store::class, 'store_id');
     }
 }

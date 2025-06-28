@@ -4,10 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Stores extends Model
+class Product extends Model
 {
     public function prices()
     {
-        return $this->hasMany(Prices::class);
+        return $this->hasMany(Price::class);
     }
 }

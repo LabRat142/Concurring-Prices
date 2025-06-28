@@ -43,6 +43,7 @@
                     'categories',
                     'page',
                     'has_discount',
+                    'is_available',
                     'brands',
                     'computer_types',
                     'laptop',
@@ -70,6 +71,7 @@
                     </div>
                 </div>
 
+                <!-- DISCOUNTED FILTER -->
                 <div class="sidebar-section">
                     <div class="form-check">
                         <input
@@ -86,6 +88,22 @@
                         </label>
                     </div>
                 </div>
+                <div class="sidebar-section">
+                    <div class="form-check">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            name="is_available"
+                            id="is_available"
+                            value="1"
+                            {{ request('is_available') ? 'checked' : '' }}
+                            onchange="this.form.submit()"
+                        >
+                        <label class="form-check-label" for="is_available">
+                            Има на залиха
+                        </label>
+                    </div>
+                </div>
 
                 <!-- RESET -->
                 <button type="reset" onclick="location.href='{{ url('/') }}';" class="btn btn-secondary w-100"
@@ -94,7 +112,7 @@
                 </button>
 
 
-                <!-- PRICE -->
+                <!-- PRICE FILTER -->
                 <div class="sidebar-section">
                     <h5 class="section-title">Цена (MKD)</h5>
                     <label class="d-block mb-2">
@@ -111,7 +129,7 @@
                     </div>
                 </div>
 
-                <!-- STORES -->
+                <!-- STORES FILTER -->
                 <div class="sidebar-section">
                     <h5 class="section-title">Продавници</h5>
                     @foreach($allStores as $store)
@@ -131,7 +149,7 @@
                     @endforeach
                 </div>
 
-                <!-- BRANDS -->
+                <!-- BRANDS FILTER-->
                 <div class="sidebar-section">
                     <h5 class="section-title">Брендови</h5>
                     @if (request()->query('category') == 'smartphone')
@@ -289,39 +307,47 @@
             @else
                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
                     @foreach($products as $product)
-                        <div class="col">
-                            <div class="card h-100 d-flex flex-column">
-                                @if ($product->store == 'Anhoch')
-                                    <img src="{{ url('/proxy-image?imageUrl=' . urlencode($product->imgURL)) }}"
-                                         class="card-img-top" alt="{{ $product->name }}"/>
-                                @else
-                                    <img src="{{ $product->imgURL }}" class="card-img-top" alt="{{ $product->name }}"
-                                         style="object-fit: contain; height: 200px;">
-                                @endif
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">{{ $product->name }}</h5>
-                                    <p class="card-text"><strong>{{ $product->price }} MKD</strong></p>
-                                    <p class="card-text">
-                                        <small class="{{ $product->available ? 'text-success' : 'text-danger' }}">
-                                            {{ $product->available ? 'На залиха' : 'Нема на залиха' }}
-                                        </small><br>
-                                        <small>Продавница: {{ $product->store }}</small><br>
-                                    </p>
-                                    {{-- only show this when there’s a discount --}}
-                                    @if($product->discount_price > 0)
-                                        <p class="card-text">
-                                            <strong class="text-danger">
-                                                Попуст: {{ number_format($product->discount_price) }} MKD
-                                            </strong>
-                                        </p>
+                        @if ($product->prices && !$product->prices->isEmpty())
+                            <div class="col">
+                                <div class="card h-100 d-flex flex-column">
+                                    @php
+                                        $img = $product->prices->first(fn ($price) => $price->imgURL &&
+                                                   !str_contains($price->imgURL, 'anhoch'))?->imgURL;
+                                    @endphp
+
+                                    @if (!$img || str_contains($img,'anhoch'))
+                                        <img src="{{ asset('images/fallback_image.jpg') }}" class="card-img-top" alt="...">
+                                    @else
+                                        <img src="{{ $img }}" class="card-img-top" alt="{{ $product->name }}">
                                     @endif
-                                    <div class="mt-auto">
-                                        <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100"
-                                           target="_blank">Прикажи го производот</a>
+
+                                    <div class="card-body d-flex flex-column">
+                                        <h5 class="card-title">{{ $product->name }}</h5>
+                                        <ul class="list-unstyled mb-0">
+                                            <hr class="my-1">
+                                            @foreach ($product->prices as $price)
+                                                <li class="d-flex justify-content-between">
+                                                    <div class="text-muted text-start">{{ $price->store->name }}</div>
+                                                    <div class="d-flex flex-column text-end">
+                                                        @if ($price->discount_price && $price->discount_price < $price->price)
+                                                            <del class="text-muted">MKD{{ $price->price }}</del>
+                                                            <strong class="text-danger">MKD{{ $price->discount_price }}</strong>
+                                                        @else
+                                                            <span>MKD{{ $price->price }}</span>
+                                                        @endif
+                                                    </div>
+                                                </li>
+                                                <hr class="my-1">
+                                            @endforeach
+                                        </ul>
+                                        <div class="mt-auto">
+                                            <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100"
+                                               target="_blank">Прикажи го производот</a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        @endif
                     @endforeach
                 </div>
 
