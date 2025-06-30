@@ -1,3 +1,5 @@
 httpx
 python-dotenv
 mysql-connector-python
+fuzzywuzzy
+python-Levenshtein

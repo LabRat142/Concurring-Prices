@@ -2,6 +2,8 @@ import asyncio
 import os
 import httpx
 import mysql.connector
+import re
+from fuzzywuzzy import fuzz
 from dotenv import load_dotenv
 
 dotenv_path = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -40,9 +42,54 @@ def create_table_if_not_exists(cursor): #if this table needs to be created for y
 def delete_category_data(cursor, category):
     cursor.execute("DELETE FROM products WHERE category = %s", (category,))
 
+def trim_name(a):
+    ignore_words = set(word.lower() for word in [
+                       'samsung', 'apple', 'xiaomi', 'huawei', 'sony', 'LG', 'oneplus', 'nokia', 'motorola', 'oppo',
+                       'dell', 'hp', 'lenovo', 'macbook', 'gaming',
+                       'black', 'white', 'silver', 'gray', 'lightgray', 'yellow', 'cyan', 'red', 'green', 'lilac', 'lemon', 'lime', 'blue', 'olive', 'lavander', 'lavender', 'pink', 'violet', 'purple', 'navy', 'icyblue', 'mint'
+                   ])
+    a = a.lower()
+    words = a.split()
+    words = [word for word in words if word and word not in ignore_words]
+    return " ".join(words)
+
+def normalize_name(name):
+    name = name.lower()
+    name = name.replace("/", " ")
+    name = re.sub(r'[^a-z0-9\s+]', '', name)  # remove punctuation
+    name = re.sub(r'\s+', ' ', name).strip()  # collapse whitespace
+    return name
+
+def is_similar(a, b, threshold = 90):
+    score = (
+        0.3 * fuzz.ratio(a, b) +
+        0.4 * fuzz.token_sort_ratio(a, b) +
+        0.3 * fuzz.partial_token_sort_ratio(a, b)
+    )
+    return score >= threshold
+
+def is_token_similar(a, b, threshold = 2):
+    a_tokens = set(a.split())
+    b_tokens = set(b.split())
+    overlap = a_tokens & b_tokens
+    return len(a_tokens.symmetric_difference(b_tokens)) <= threshold
+
+def extract_numeric_signature(text):
+    text = text.lower()
+    return sorted(re.findall(r'\d+[a-zA-Z]*', text))
+
+def is_numeric_similar(a, b, tolerance=0.5):
+        sig_a = extract_numeric_signature(a)
+        sig_b = extract_numeric_signature(b)
+        set1 = set(sig_a)
+        set2 = set(sig_b)
+        if not set1 or not set2:
+            return True
+        intersection = set1 & set2
+        return len(intersection) / max(len(set1), len(set2)) >= tolerance
 
 def insert_product(cursor, product, category):
-    # Get Store ID
+    # Check if store exists in database
     store_sql = """
     SELECT id FROM stores WHERE name LIKE %s
     """
@@ -50,6 +97,7 @@ def insert_product(cursor, product, category):
     store_id = None
     cursor.execute(store_sql, (product['store'],))
     result = cursor.fetchone()
+    # If store doesn't exist, add it and get store_id
     if result is None:
         insert_store_sql = """
         INSERT INTO stores (name, created_at, updated_at) VALUES (%s, NOW(), NOW())
@@ -62,41 +110,52 @@ def insert_product(cursor, product, category):
         result = cursor.fetchone()
         if result:
             store_id = result[0]
+    # If store does exist, get its store_id
     else:
         store_id = result[0]
 
     if store_id is None:
         return
 
-    # Check If Product Exists
-    product_sql = """
-    SELECT id FROM products WHERE name = %s
-    """
-    cursor.execute(product_sql, (product['name'],))
-    result = cursor.fetchone()
+    # Check If product is already in database (by using similarity name normalization and a similarity library)
+    cursor.execute("SELECT id, name FROM products")
+    all_products = cursor.fetchall()
 
-    # If product doesn't exist
-    if result is None:
-        # Create new product
+    product_name = product['name']
+    normalized_name = trim_name(normalize_name(product_name))
+    fuzzy_threshold = 90
+    token_threshold = 2
+    numeric_tolerance = 0.5
+    match = None
+
+    for prod_id, prod_name in all_products:
+        curr_normalized_name = trim_name(normalize_name(prod_name))
+        if is_token_similar(curr_normalized_name, normalized_name, token_threshold) and \
+            is_numeric_similar(curr_normalized_name, normalized_name, numeric_tolerance) and \
+            is_similar(curr_normalized_name, normalized_name, fuzzy_threshold):
+            match = prod_id
+            break
+
+    # If product doesn't exist, add new product and price entry
+    if match is None:
         insert_product_sql = """
         INSERT INTO products (name, category, created_at, updated_at)
         VALUES (%s, %s, NOW(), NOW())
         """
         cursor.execute(insert_product_sql, (
-            product['name'],
+            product_name,
             category
         ))
 
-        # Get id of new product
         get_id_sql = """
         SELECT id FROM products WHERE name LIKE %s
         """
-        cursor.execute(get_id_sql,(product['name'],))
+        cursor.execute(get_id_sql,(product_name,))
         result = cursor.fetchone()
         if result:
             new_prod_id = result[0]
 
-        # Create new product-store relation
+        # Create new price entry
         insert_prices_sql = """
         INSERT INTO prices (product_id, store_id, price, discount_price, url, available, imgURL,  created_at, updated_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
@@ -110,11 +169,11 @@ def insert_product(cursor, product, category):
             product['available'],
             product['imgURL'],
         ))
-    # else if product exists
+    # if product does exist, get product_id and get prices entry
     else:
-        product_id = result[0]
+        product_id = match
 
-        # Check if Product-Store relation exists
+        # Check if price entry exists
         prices_sql = """
         SELECT id FROM prices
         WHERE product_id = %s AND store_id = %s
@@ -122,9 +181,8 @@ def insert_product(cursor, product, category):
         cursor.execute(prices_sql, (product_id, store_id))
         result = cursor.fetchone()
 
-        # If relation doesn't exist
+        # If price entry doesn't exist, create it and get price_id
         if result is None:
-            #Insert new relation
             insert_prices_sql = """
             INSERT INTO prices (product_id, store_id, price, discount_price, url, available, imgURL,  created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
@@ -138,10 +196,9 @@ def insert_product(cursor, product, category):
                 product['available'],
                 product['imgURL'],
             ))
-        # else if relation exists
+        # if price entry does exists, update it
         else:
             prices_id = result[0]
-            # Update relation
             update_prices_sql = """
             UPDATE prices SET store_id = %s, price = %s, discount_price = %s, url = %s, available = %s, imgURL = %s, updated_at = NOW()
             WHERE id = %s

@@ -338,10 +338,11 @@
                                                 <hr class="my-1">
                                             @endforeach
                                         </ul>
-                                        <div class="mt-auto">
-                                            <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100"
-                                               target="_blank">Прикажи го производот</a>
-                                        </div>
+{{--                                        TODO: DIRECT TO DETAILS PAGE --}}
+{{--                                        <div class="mt-auto">--}}
+{{--                                            <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100"--}}
+{{--                                               target="_blank">Прикажи го производот</a>--}}
+{{--                                        </div>--}}
                                     </div>
                                 </div>
                             </div>
