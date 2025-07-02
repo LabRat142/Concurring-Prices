@@ -309,18 +309,22 @@
                             <div class="col">
                                 <div class="card h-100 d-flex flex-column">
                                     @php
-                                        $img = $product->prices->first(fn ($price) => $price->imgURL &&
-                                                   !str_contains($price->imgURL, 'anhoch'))?->imgURL;
+                                        $img = $product->prices
+                                            ->first(fn($price) => $price->imgURL && !str_contains($price->imgURL, 'anhoch'))
+                                            ?->imgURL;
                                     @endphp
 
-                                    @if (!$img || str_contains($img,'anhoch'))
-                                        <img src="{{ asset('images/fallback_image.jpg') }}" class="card-img-top" alt="...">
+                                    @if (!$img || str_contains($img, 'anhoch'))
+                                        <img src="{{ asset('images/fallback_image.jpg') }}"
+                                             class="card-img-top" alt="No image">
                                     @else
-                                        <img src="{{ $img }}" class="card-img-top" alt="{{ $product->name }}">
+                                        <img src="{{ $img }}"
+                                             class="card-img-top" alt="{{ $product->name }}">
                                     @endif
 
                                     <div class="card-body d-flex flex-column">
                                         <h5 class="card-title">{{ $product->name }}</h5>
+
                                         <ul class="list-unstyled mb-0">
                                             <hr class="my-1">
                                             @foreach ($product->prices as $price)
@@ -338,16 +342,21 @@
                                                 <hr class="my-1">
                                             @endforeach
                                         </ul>
-{{--                                        TODO: DIRECT TO DETAILS PAGE --}}
-{{--                                        <div class="mt-auto">--}}
-{{--                                            <a href="{{ $product->url }}" class="btn btn-outline-primary btn-sm w-100"--}}
-{{--                                               target="_blank">Прикажи го производот</a>--}}
-{{--                                        </div>--}}
+
+                                        {{-- This div makes the button stick to the bottom --}}
+                                        <div class="mt-auto">
+                                            <a href="{{ route('products.show', $product->id) }}"
+                                               class="btn btn-outline-primary btn-sm w-100">
+                                                Details
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+
                         @endif
                     @endforeach
+
                 </div>
 
                 <!-- Pagination -->

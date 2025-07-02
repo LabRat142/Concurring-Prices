@@ -94,4 +94,21 @@ class ProductsController extends Controller
             'maxPriceInput' => $maxPriceInput,
         ]);
     }
+
+    public function show(int $productId): View
+    {
+        // load the product and all its prices & store data
+        $product = Product::with('prices.store')
+            ->findOrFail($productId);
+
+        // pick one image to display (or null)
+        $image = $product->prices
+            ->pluck('imgURL')
+            ->first(fn($url) => $url && !str_contains($url, 'fallback'));
+
+        return view('product-details', [
+            'product' => $product,
+            'image'   => $image,
+        ]);
+    }
 }
